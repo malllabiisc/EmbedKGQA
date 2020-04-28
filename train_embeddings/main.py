@@ -7,6 +7,7 @@ from model import *
 from torch.optim.lr_scheduler import ExponentialLR
 import argparse
 from tqdm import tqdm
+import os
 
     
 class Experiment:
@@ -112,6 +113,66 @@ class Experiment:
         print('Mean reciprocal rank: {0}'.format(mrr))
         return [mrr, meanrank, hitat10, hitat3, hitat1]
 
+    def write_embedding_files(self, model):
+        model.eval()
+        model_folder = "../kg_embeddings/%s/" % self.dataset
+        data_folder = "../data/%s/" % self.dataset
+        embedding_type = self.model
+        if os.path.exists(model_folder) == False:
+            os.mkdir(model_folder)
+        R_numpy = model.R.weight.data.cpu().numpy()
+        E_numpy = model.E.weight.data.cpu().numpy()
+        bn_list = []
+        for bn in [model.bn0, model.bn1, model.bn2]:
+            bn_weight = bn.weight.data.cpu().numpy()
+            bn_bias = bn.bias.data.cpu().numpy()
+            bn_running_mean = bn.running_mean.data.cpu().numpy()
+            bn_running_var = bn.running_var.data.cpu().numpy()
+            bn_numpy = {}
+            bn_numpy['weight'] = bn_weight
+            bn_numpy['bias'] = bn_bias
+            bn_numpy['running_mean'] = bn_running_mean
+            bn_numpy['running_var'] = bn_running_var
+            bn_list.append(bn_numpy)
+            
+        if embedding_type == 'TuckER':
+            W_numpy = model.W.detach().cpu().numpy()
+            
+        np.save(model_folder +'/E.npy', E_numpy)
+        np.save(model_folder +'/R.npy', R_numpy)
+        for i, bn in enumerate(bn_list):
+            np.save(model_folder + '/bn' + str(i) + '.npy', bn)
+
+        if embedding_type == 'TuckER':
+            np.save(model_folder +'/W.npy', W_numpy)
+
+        f = open(data_folder + '/entities.dict', 'r')
+        f2 = open(model_folder + '/entities.dict', 'w')
+        ents = {}
+        idx2ent = {}
+        for line in f:
+            line = line.rstrip().split('\t')
+            name = line[0]
+            id = int(line[1])
+            ents[name] = id
+            idx2ent[id] = name
+            f2.write(str(id) + '\t' + name + '\n')
+        f.close()
+        f2.close()
+        f = open(data_folder + '/relations.dict', 'r')
+        f2 = open(model_folder + '/relations.dict', 'w')
+        rels = {}
+        idx2rel = {}
+        for line in f:
+            line = line.strip().split('\t')
+            name = line[0]
+            id = int(line[1])
+            rels[name] = id
+            idx2rel[id] = name
+            f2.write(str(id) + '\t' + name + '\n')
+        f.close()
+        f2.close()
+
 
     def train_and_eval(self):
         torch.set_num_threads(2)
@@ -119,20 +180,18 @@ class Experiment:
         best_test = [0, 0, 0, 0, 0]
         self.entity_idxs = {d.entities[i]:i for i in range(len(d.entities))}
         self.relation_idxs = {d.relations[i]:i for i in range(len(d.relations))}
-        f = open('data/' + self.dataset +'/entities.dict', 'w')
+        f = open('../data/' + self.dataset +'/entities.dict', 'w')
         for key, value in self.entity_idxs.items():
             f.write(key + '\t' + str(value) +'\n')
         f.close()
-        f = open('data/' + self.dataset + '/relations.dict', 'w')
+        f = open('../data/' + self.dataset + '/relations.dict', 'w')
         for key, value in self.relation_idxs.items():
             f.write(key + '\t' + str(value) +'\n')
         f.close()
-        # exit(0)
         train_data_idxs = self.get_data_idxs(d.train_data)
         print("Number of training data points: %d" % len(train_data_idxs))
         print('Entities: %d' % len(self.entity_idxs))
         print('Relations: %d' % len(self.relation_idxs))
-        print(self.rel_vec_dim)
         model = TuckER(d, self.ent_vec_dim, self.rel_vec_dim, **self.kwargs)
         model.init()
         if self.load_from != '':
@@ -188,8 +247,9 @@ class Experiment:
                     if valid_mrr >= best_valid[0]:
                         best_valid = valid
                         best_test = test
+                        print('Validation MRR increased.')
                         print('Saving model...')
-                        torch.save(model.state_dict(), self.outfile)
+                        write_embedding_files(model)
                         print('Model saved!')    
                     
                     print('Best valid:', best_valid)
@@ -198,7 +258,6 @@ class Experiment:
                     print('Model:', self.model)
 
                     print(time.time()-start_test)
-                    # print('Best valid MRR: %f | Best test MRR: %f' % (best_valid_mrr, best_test_mrr))   
                     print('Learning rate %f | Decay %f | Dim %d | Input drop %f | Hidden drop 2 %f | LS %f | Batch size %d | Loss type %s | L3 reg %f' % 
                         (self.learning_rate, self.decay_rate, self.ent_vec_dim, self.kwargs["input_dropout"], 
                          self.kwargs["hidden_dropout2"], self.label_smoothing, self.batch_size,
@@ -250,7 +309,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     dataset = args.dataset
-    data_dir = "data/%s/" % dataset
+    data_dir = "../data/%s/" % dataset
     torch.backends.cudnn.deterministic = True 
     seed = 20
     np.random.seed(seed)
