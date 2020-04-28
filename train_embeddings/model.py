@@ -71,8 +71,6 @@ class TuckER(torch.nn.Module):
 
         self.logsoftmax = torch.nn.LogSoftmax(dim=-1)
         print('Model is', self.model)
-        print(self.E.weight.nelement() * self.E.weight.element_size())
-        print(self.E.weight.nelement())
         
     def freeze_entity_embeddings(self):
         self.E.weight.requires_grad = False
