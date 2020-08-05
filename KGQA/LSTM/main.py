@@ -166,8 +166,6 @@ def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg
     # print(idx2word)
     # aditay
     # print(idx2word.keys())
-    data_to_store = {'word2idx':word2ix, 'idx2word':idx2word, 'entity2idx':entity2idx, 'idx2entity':idx2entity, 'embedding':embedding_matrix}
-    pickle.dump(data_to_store, open('important_data.pkl', 'wb'))
     device = torch.device(gpu if use_cuda else "cpu")
     dataset = DatasetMetaQA(data=data, word2ix=word2ix, relations=r, entities=e, entity2idx=entity2idx)
     data_loader = DataLoaderMetaQA(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
