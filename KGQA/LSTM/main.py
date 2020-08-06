@@ -284,7 +284,10 @@ def data_generator(data, word2ix, entity2idx):
 hops = args.hops
 if hops in ['1', '2', '3']:
     hops = hops + 'hop'
-data_path = '../../data/QA_data/MetaQA/qa_train_' + hops + '.txt'
+if args.kg_type == 'half':
+    data_path = '../../data/QA_data/MetaQA/qa_train_' + hops + '_half.txt'
+else:
+    data_path = '../../data/QA_data/MetaQA/qa_train_' + hops + '.txt'
 print('Train file is ', data_path)
 
 valid_data_path = '../../data/QA_data/MetaQA/qa_dev_' + hops + '.txt'
