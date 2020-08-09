@@ -6,7 +6,7 @@ We will be updating the README with instructions on how to download the dataset 
 
 # Instructions
 
-In order to run the code for MetaQA, first unzip data.zip and pretrained_model.zip
+In order to run the code for MetaQA, first unzip data.zip and pretrained_model.zip (Alternately, if download from this repo doesn't work due to git lfs limits, you can download from [here](https://drive.google.com/drive/folders/1RlqGBMo45lTmWz9MUPTq-0KcjSd3ujxc?usp=sharing)). Unzip these files in the main directory.
 
 Then change to directory ./KGQA/LSTM. Following is an example command to run the QA training code
 
