@@ -216,6 +216,8 @@ def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg
                     no_update = 0
                     best_model = model.state_dict()
                     print(hops + " hop Validation accuracy increased from previous epoch", score)
+                    _, test_score = validate(model=model, data_path= test_data_path, word2idx= word2ix, entity2idx= entity2idx, device=device, model_name=model_name)
+                    print('Test score for best valid so far:', test_score)
                     # writeToFile(answers, 'results_' + model_name + '_' + hops + '.txt')
                     suffix = ''
                     if freeze == True:
