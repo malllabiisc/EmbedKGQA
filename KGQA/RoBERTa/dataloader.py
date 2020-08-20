@@ -12,11 +12,9 @@ import numpy as np
 from transformers import *
 
 
-
 class DatasetMetaQA(Dataset):
-    def __init__(self, data, relations, entities, entity2idx):
+    def __init__(self, data, entities, entity2idx):
         self.data = data
-        self.relations = relations
         self.entities = entities
         self.entity2idx = entity2idx
         self.pos_dict = defaultdict(list)
@@ -41,6 +39,7 @@ class DatasetMetaQA(Dataset):
         vec_len = len(self.entity2idx)
         one_hot = torch.FloatTensor(vec_len)
         one_hot.zero_()
+        # one_hot = -torch.ones(vec_len, dtype=torch.float32)
         one_hot.scatter_(0, indices, 1)
         return one_hot
 

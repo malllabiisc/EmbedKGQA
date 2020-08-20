@@ -7,22 +7,24 @@ import torch.nn.functional as F
 import numpy as np
 from torch.nn.init import xavier_normal_
 from transformers import *
-
+import random
 
 class RelationExtractor(nn.Module):
 
-    def __init__(self, embedding_dim, relation_dim, num_entities, pretrained_embeddings, device, entdrop, reldrop, scoredrop, l3_reg, model, ls, w_matrix, bn_list, freeze=True):
+    def __init__(self, embedding_dim, relation_dim, num_entities, pretrained_embeddings, device, entdrop, reldrop, scoredrop, l3_reg, model, ls, do_batch_norm, freeze=True):
         super(RelationExtractor, self).__init__()
-        self.bn_list = bn_list
         self.device = device
         self.model = model
         self.freeze = freeze
         self.label_smoothing = ls
         self.l3_reg = l3_reg
+        self.do_batch_norm = do_batch_norm
+        if not self.do_batch_norm:
+            print('Not doing batch norm')
         self.roberta_pretrained_weights = 'roberta-base'
         self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
         for param in self.roberta_model.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         if self.model == 'DistMult':
             multiplier = 1
             self.getScores = self.DistMult
@@ -32,17 +34,14 @@ class RelationExtractor(nn.Module):
         elif self.model == 'ComplEx':
             multiplier = 2
             self.getScores = self.ComplEx
-        elif self.model == 'Rotat3':
-            multiplier = 3
-            self.getScores = self.Rotat3
         elif self.model == 'TuckER':
-            W_torch = torch.from_numpy(np.load(w_matrix))
-            self.W = nn.Parameter(
-                torch.Tensor(W_torch), 
-                requires_grad = not self.freeze
-            )
-            # self.W = nn.Parameter(torch.tensor(np.random.uniform(-1, 1, (relation_dim, relation_dim, relation_dim)), 
-            #                         dtype=torch.float, device="cuda", requires_grad=True))
+            # W_torch = torch.from_numpy(np.load(w_matrix))
+            # self.W = nn.Parameter(
+            #     torch.Tensor(W_torch), 
+            #     requires_grad = not self.freeze
+            # )
+            self.W = nn.Parameter(torch.tensor(np.random.uniform(-1, 1, (relation_dim, relation_dim, relation_dim)), 
+                                    dtype=torch.float, device="cuda", requires_grad=True))
             multiplier = 1
             self.getScores = self.TuckER
         elif self.model == 'RESCAL':
@@ -58,7 +57,8 @@ class RelationExtractor(nn.Module):
             self.relation_dim = relation_dim * relation_dim
         
         self.num_entities = num_entities
-        self.loss = torch.nn.BCELoss(reduction='sum')
+        # self.loss = torch.nn.BCELoss(reduction='sum')
+        self.loss = self.kge_loss
 
         # best: all dropout 0
         self.rel_dropout = torch.nn.Dropout(reldrop)
@@ -66,10 +66,15 @@ class RelationExtractor(nn.Module):
         self.score_dropout = torch.nn.Dropout(scoredrop)
         self.fcnn_dropout = torch.nn.Dropout(0.1)
 
-        self.pretrained_embeddings = pretrained_embeddings
+        # self.pretrained_embeddings = pretrained_embeddings
+        # random.shuffle(pretrained_embeddings)
+        # print(pretrained_embeddings[0])
         print('Frozen:', self.freeze)
-        self.embedding = nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings), freeze=self.freeze)
+        self.embedding = nn.Embedding.from_pretrained(torch.stack(pretrained_embeddings, dim=0), freeze=self.freeze)
+        # self.embedding = nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings), freeze=self.freeze)
+        print(self.embedding.weight.shape)
         # self.embedding = nn.Embedding(self.num_entities, self.relation_dim)
+        # self.embedding.weight.requires_grad = False
         # xavier_normal_(self.embedding.weight.data)
 
         self.mid1 = 512
@@ -77,10 +82,10 @@ class RelationExtractor(nn.Module):
         self.mid3 = 512
         self.mid4 = 512
 
-        self.lin1 = nn.Linear(self.hidden_dim, self.mid1)
-        self.lin2 = nn.Linear(self.mid1, self.mid2)
-        self.lin3 = nn.Linear(self.mid2, self.mid3)
-        self.lin4 = nn.Linear(self.mid3, self.mid4)
+        # self.lin1 = nn.Linear(self.hidden_dim, self.mid1)
+        # self.lin2 = nn.Linear(self.mid1, self.mid2)
+        # self.lin3 = nn.Linear(self.mid2, self.mid3)
+        # self.lin4 = nn.Linear(self.mid3, self.mid4)
         # self.hidden2rel = nn.Linear(self.mid4, self.relation_dim)
         self.hidden2rel = nn.Linear(self.hidden_dim, self.relation_dim)
         self.hidden2rel_base = nn.Linear(self.mid2, self.relation_dim)
@@ -92,26 +97,20 @@ class RelationExtractor(nn.Module):
             self.bn0 = torch.nn.BatchNorm1d(multiplier)
             self.bn2 = torch.nn.BatchNorm1d(multiplier)
 
-        for i in range(3):
-            for key, value in self.bn_list[i].items():
-                self.bn_list[i][key] = torch.Tensor(value).to(device)
 
-        
-        self.bn0.weight.data = self.bn_list[0]['weight']
-        self.bn0.bias.data = self.bn_list[0]['bias']
-        self.bn0.running_mean.data = self.bn_list[0]['running_mean']
-        self.bn0.running_var.data = self.bn_list[0]['running_var']
-
-        self.bn2.weight.data = self.bn_list[2]['weight']
-        self.bn2.bias.data = self.bn_list[2]['bias']
-        self.bn2.running_mean.data = self.bn_list[2]['running_mean']
-        self.bn2.running_var.data = self.bn_list[2]['running_var']
 
         self.logsoftmax = torch.nn.LogSoftmax(dim=-1)        
+        self._klloss = torch.nn.KLDivLoss(reduction='sum')
 
     def set_bn_eval(self):
         self.bn0.eval()
         self.bn2.eval()
+
+    def kge_loss(self, scores, targets):
+        # loss = torch.mean(scores*targets)
+        return self._klloss(
+            F.log_softmax(scores, dim=1), F.normalize(targets.float(), p=1, dim=1)
+        )
 
     def applyNonLinear(self, outputs):
         # outputs = self.fcnn_dropout(self.lin1(outputs))
@@ -183,15 +182,12 @@ class RelationExtractor(nn.Module):
         pred = torch.sigmoid(s)
         return pred
 
-    def ComplEx(self, head, relation):
-        eps = 1e-05
-        # bn0 = self.bn_list[0]
-        # bn2 = self.bn_list[2]
-        head = torch.stack(list(torch.chunk(head, 2, dim=1)), dim=1)
-        head = self.bn0(head)
 
-        # head = (head - bn0['running_mean'].view(head.shape))/torch.sqrt(bn0['running_var'].view(head.shape) + eps)
-        # head = (head * bn0['weight'].view(head.shape)) + bn0['bias'].view(head.shape)
+
+    def ComplEx(self, head, relation):
+        head = torch.stack(list(torch.chunk(head, 2, dim=1)), dim=1)
+        if self.do_batch_norm:
+            head = self.bn0(head)
 
         head = self.ent_dropout(head)
         relation = self.rel_dropout(relation)
@@ -206,9 +202,8 @@ class RelationExtractor(nn.Module):
         im_score = re_head * im_relation + im_head * re_relation
 
         score = torch.stack([re_score, im_score], dim=1)
-        score = self.bn2(score)
-        # score = (score - bn2['running_mean'].view(score.shape))/torch.sqrt(bn2['running_var'].view(score.shape) + eps)
-        # score = (score * bn2['weight'].view(score.shape)) + bn2['bias'].view(score.shape)
+        if self.do_batch_norm:
+            score = self.bn2(score)
 
         score = self.score_dropout(score)
         score = score.permute(1, 0, 2)
@@ -216,56 +211,11 @@ class RelationExtractor(nn.Module):
         re_score = score[0]
         im_score = score[1]
         score = torch.mm(re_score, re_tail.transpose(1,0)) + torch.mm(im_score, im_tail.transpose(1,0))
-        pred = torch.sigmoid(score)
+        # pred = torch.sigmoid(score)
+        pred = score
         return pred
 
-    def Rotat3(self, head, relation):
-        pi = 3.14159265358979323846
-        relation = F.hardtanh(relation) * pi
-        r = torch.stack(list(torch.chunk(relation, 3, dim=1)), dim=1)
-        h = torch.stack(list(torch.chunk(head, 3, dim=1)), dim=1)
-        h = self.bn0(h)
-        h = self.ent_dropout(h)
-        r = self.rel_dropout(r)
-        
-        r = r.permute(1, 0, 2)
-        h = h.permute(1, 0, 2)
 
-        x = h[0]
-        y = h[1]
-        z = h[2]
-
-        # need to rotate h by r
-        # r contains values in radians
-
-        for i in range(len(r)):
-            sin_r = torch.sin(r[i])
-            cos_r = torch.cos(r[i])
-            if i == 0:
-                x_n = x.clone()
-                y_n = y * cos_r - z * sin_r
-                z_n = y * sin_r + z * cos_r
-            elif i == 1:
-                x_n = x * cos_r - y * sin_r
-                y_n = x * sin_r + y * cos_r
-                z_n = z.clone()
-            elif i == 2:
-                x_n = z * sin_r + x * cos_r
-                y_n = y.clone()
-                z_n = z * cos_r - x * sin_r
-
-            x = x_n
-            y = y_n
-            z = z_n
-
-        s = torch.stack([x, y, z], dim=1)        
-        s = self.bn2(s)
-        s = self.score_dropout(s)
-        s = s.permute(1, 0, 2)
-        s = torch.cat([s[0], s[1], s[2]], dim = 1)
-        ans = torch.mm(s, self.embedding.weight.transpose(1,0))
-        pred = torch.sigmoid(ans)
-        return pred
     
     def getQuestionEmbedding(self, question_tokenized, attention_mask):
         roberta_last_hidden_states = self.roberta_model(question_tokenized, attention_mask=attention_mask)[0]
