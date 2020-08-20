@@ -292,7 +292,7 @@ def getEntityEmbeddings(kge_model, hops):
     f.close()
     return e
 
-def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs, embedding_dim, hidden_dim, relation_dim, gpu, use_cuda,patience, freeze, validate_every, hops, lr, entdrop, reldrop, scoredrop, l3_reg, model_name, decay, ls, load_from, outfile, do_batch_norm, valid_data_path=None):
+def train(data_path, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs, embedding_dim, hidden_dim, relation_dim, gpu, use_cuda,patience, freeze, validate_every, hops, lr, entdrop, reldrop, scoredrop, l3_reg, model_name, decay, ls, load_from, outfile, do_batch_norm, valid_data_path=None):
     print('Loading entities and relations')
     kg_type = 'full'
     if 'half' in hops:
@@ -446,25 +446,9 @@ if 'webqsp' in hops:
     valid_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
     test_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
 
-    model_name = 'ComplEx_fbwq_full'
-    if 'half' in hops:
-        model_name = 'ComplEx_fbwq_half'    
-    entity_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/E.npy'
-    relation_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/R.npy'
-    entity_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/entities.dict'
-    relation_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/relations.dict'
-
-    # entity_embedding_path = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/E.npy'
-    # relation_embedding_path = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/R.npy'
-    # entity_dict = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/entities.dict'
-    # relation_dict = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/relations.dict'
 
 if args.mode == 'train':
     train(data_path=data_path, 
-    entity_path=entity_embedding_path, 
-    relation_path=relation_embedding_path,
-    entity_dict=entity_dict, 
-    relation_dict=relation_dict, 
     neg_batch_size=args.neg_batch_size, 
     batch_size=args.batch_size,
     shuffle=args.shuffle_data, 
