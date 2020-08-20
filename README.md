@@ -6,7 +6,7 @@ This is the code for our ACL 2020 paper [Improving Multi-hop Question Answering 
 
 # Instructions
 
-In order to run the code, first download data.zip and pretrained_model.zip from [here](https://drive.google.com/drive/folders/1RlqGBMo45lTmWz9MUPTq-0KcjSd3ujxc?usp=sharing). Unzip these files in the main directory.
+In order to run the code, first download [data.zip](https://indianinstituteofscience-my.sharepoint.com/:u:/g/personal/apoorvsaxena_iisc_ac_in/ERKBt2GfEzhHv5NdYLz6rs0BXTvvHJ0AULuArGPbONZ_eQ?e=j8S8mG) and [pretrained_model.zip](https://indianinstituteofscience-my.sharepoint.com/:u:/g/personal/apoorvsaxena_iisc_ac_in/ES_R66NgpCBPp6MNBx5SWxoBElIlY9aS8-7bgnhXrLbqxQ?e=JmBJIw). Unzip these files in the main directory.
 
 ## MetaQA
 
