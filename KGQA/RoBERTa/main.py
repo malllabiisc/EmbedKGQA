@@ -10,9 +10,13 @@ import operator
 from torch.nn import functional as F
 from dataloader import DatasetMetaQA, DataLoaderMetaQA
 from model import RelationExtractor
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau
 import networkx as nx
 import time
+import sys
+sys.path.append("../..") # Adds higher directory to python modules path.
+from kge.model import KgeModel
+from kge.util.io import load_checkpoint
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -51,6 +55,7 @@ parser.add_argument('--relation_dim', type=int, default=30)
 parser.add_argument('--use_cuda', type=bool, default=True)
 parser.add_argument('--patience', type=int, default=5)
 parser.add_argument('--freeze', type=str2bool, default=True)
+parser.add_argument('--do_batch_norm', type=str2bool, default=True)
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4,5,6,7"
 args = parser.parse_args()
@@ -252,7 +257,7 @@ def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_na
         print('wrote candidate file (for future answer processing)')
     # np.save("scores_webqsp_complex.npy", scores_list)
     # exit(0)
-    print(hit_at_10/len(data))
+    # print(hit_at_10/len(data))
     accuracy = total_correct/len(data)
     # print('Error mean rank: %f' % (incorrect_rank_sum/num_incorrect))
     # print('%d out of %d incorrect were not in top 50' % (not_in_top_50_count, num_incorrect))
@@ -271,22 +276,46 @@ def set_bn_eval(m):
     if classname.find('BatchNorm1d') != -1:
         m.eval()
 
-def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs, embedding_dim, hidden_dim, relation_dim, gpu, use_cuda,patience, freeze, validate_every, num_hops, lr, entdrop, reldrop, scoredrop, l3_reg, model_name, decay, ls, w_matrix, load_from, outfile, bn_list, valid_data_path=None):
+def getEntityEmbeddings(kge_model, hops):
+    e = {}
+    entity_dict = '../../pretrained_models/embeddings/ComplEx_fbwq_full/entity_ids.del'
+    if 'half' in hops:
+        entity_dict = '../../pretrained_models/embeddings/ComplEx_fbwq_half/entity_ids.del'
+        print('Loading half entity_ids.del')
+    embedder = kge_model._entity_embedder
+    f = open(entity_dict, 'r')
+    for line in f:
+        line = line[:-1].split('\t')
+        ent_id = int(line[0])
+        ent_name = line[1]
+        e[ent_name] = embedder._embeddings(torch.LongTensor([ent_id]))[0]
+    f.close()
+    return e
+
+def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs, embedding_dim, hidden_dim, relation_dim, gpu, use_cuda,patience, freeze, validate_every, hops, lr, entdrop, reldrop, scoredrop, l3_reg, model_name, decay, ls, load_from, outfile, do_batch_norm, valid_data_path=None):
     print('Loading entities and relations')
-    entities = np.load(entity_path)
-    relations = np.load(relation_path)
+    kg_type = 'full'
+    if 'half' in hops:
+        kg_type = 'half'
+    checkpoint_file = '../../pretrained_models/embeddings/ComplEx_fbwq_' + kg_type + '/checkpoint_best.pt'
+    print('Loading kg embeddings from', checkpoint_file)
+    kge_checkpoint = load_checkpoint(checkpoint_file)
+    kge_model = KgeModel.create_from(kge_checkpoint)
+    kge_model.eval()
+    e = getEntityEmbeddings(kge_model, hops)
+
     print('Loaded entities and relations')
-    e,r = preprocess_entities_relations(entity_dict, relation_dict, entities, relations)
+
     entity2idx, idx2entity, embedding_matrix = prepare_embeddings(e)
     data = process_text_file(data_path, split=False)
     print('Train file processed, making dataloader')
     # word2ix,idx2word, max_len = get_vocab(data)
-    hops = str(num_hops)
+    # hops = str(num_hops)
     device = torch.device(gpu if use_cuda else "cpu")
-    dataset = DatasetMetaQA(data=data, relations=r, entities=e, entity2idx=entity2idx)
+    dataset = DatasetMetaQA(data, e, entity2idx)
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     print('Creating model...')
-    model = RelationExtractor(embedding_dim=embedding_dim, num_entities = len(idx2entity), relation_dim=relation_dim, pretrained_embeddings=embedding_matrix, freeze=freeze, device=device, entdrop = entdrop, reldrop = reldrop, scoredrop = scoredrop, l3_reg = l3_reg, model = model_name, ls = ls, w_matrix = w_matrix, bn_list=bn_list)
+    model = RelationExtractor(embedding_dim=embedding_dim, num_entities = len(idx2entity), relation_dim=relation_dim, pretrained_embeddings=embedding_matrix, freeze=freeze, device=device, entdrop = entdrop, reldrop = reldrop, scoredrop = scoredrop, l3_reg = l3_reg, model = model_name, ls = ls, do_batch_norm=do_batch_norm)
     print('Model created!')
     if load_from != '':
         # model.load_state_dict(torch.load("checkpoints/roberta_finetune/" + load_from + ".pt"))
@@ -335,25 +364,25 @@ def train(data_path, entity_path, relation_path, entity_dict, relation_dict, neg
                     best_score = score
                     no_update = 0
                     best_model = model.state_dict()
-                    print(hops + " hop Validation accuracy increased from previous epoch", score)
-                    writeToFile(answers, 'results_' + model_name + '_' + hops + '.txt')
+                    print(hops + " hop Validation accuracy (no relation scoring) increased from previous epoch", score)
+                    # writeToFile(answers, 'results_' + model_name + '_' + hops + '.txt')
                     # torch.save(best_model, "checkpoints/roberta_finetune/best_score_model.pt")
-                    torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
+                    # torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
                 elif (score < best_score + eps) and (no_update < patience):
                     no_update +=1
                     print("Validation accuracy decreases to %f from %f, %d more epoch to check"%(score, best_score, patience-no_update))
                 elif no_update == patience:
                     print("Model has exceed patience. Saving best model and exiting")
                     # torch.save(best_model, "checkpoints/roberta_finetune/best_score_model.pt")
-                    torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
+                    # torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
                     exit()
                 if epoch == nb_epochs-1:
                     print("Final Epoch has reached. Stoping and saving model.")
                     # torch.save(best_model, "checkpoints/roberta_finetune/best_score_model.pt")
-                    torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
+                    # torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
                     exit()
                 # torch.save(model.state_dict(), "checkpoints/roberta_finetune/"+str(epoch)+".pt")
-                torch.save(model.state_dict(), "checkpoints/roberta_finetune/x.pt")
+                # torch.save(model.state_dict(), "checkpoints/roberta_finetune/x.pt")
                     
 
 def process_text_file(text_file, split=False):
@@ -407,65 +436,24 @@ def data_generator(data, dataloader, entity2idx):
 
 
 
-# parser.add_argument('--data_path', type=str, default='/scratche/home/apoorv/tut_pytorch/kg-qa/qa_train_1hop.txt')
-# parser.add_argument('--valid_data_path', type=str, default='/scratche/home/apoorv/tut_pytorch/kg-qa/qa_dev_1hop.txt')
-# parser.add_argument('--test_data_path', type=str, default='/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_1hop.txt')
 
 hops = args.hops
-if hops in ['1', '2', '3']:
-    hops = hops + 'hop'
-data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_train_' + hops + '.txt'
-
-if '_half' in hops:
-    hops = ''.join(hops.split('_half'))
-if '_old' in hops:
-    hops = ''.join(hops.split('_old'))
-    print(hops)
-
-
-valid_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_dev_' + hops + '.txt'
-test_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_' + hops + '.txt'
-
-if hops in ['1pct', '5pct', '10pct']:
-    valid_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_dev_' + 'half' + '.txt'
-    test_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_' + 'half' + '.txt'
-
-
 
 model_name = args.model
-model_folder_name = model_name + '_MetaQA_full'
-entity_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/E.npy'
-relation_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/R.npy'
-entity_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/entities.dict'
-relation_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/relations.dict'
-w_matrix = '/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/W.npy'
-bn_list = []
-for i in range(3):
-        bn = np.load('/scratche/home/apoorv/mod_TuckER/models/' + model_folder_name + '/bn' + str(i) + '.npy', allow_pickle=True)
-        bn_list.append(bn.item())
 
 if 'webqsp' in hops:
-    data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_train_webqsp.txt'
-    valid_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_webqsp.txt'
-    test_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_webqsp.txt'
-    # data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_train_webqsp_big.txt'
-    # valid_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_webqsp_big.txt'
-    # test_data_path = '/scratche/home/apoorv/tut_pytorch/kg-qa/qa_test_webqsp_big.txt'
+    data_path = '../../data/QA_data/WebQuestionsSP/qa_train_webqsp.txt'
+    valid_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
+    test_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
 
     model_name = 'ComplEx_fbwq_full'
     if 'half' in hops:
         model_name = 'ComplEx_fbwq_half'    
-    if 'cmu' in hops:
-        model_name = 'ComplEx_fbwq_full_cmu'
-        print(model_name)  
     entity_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/E.npy'
     relation_embedding_path = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/R.npy'
     entity_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/entities.dict'
     relation_dict = '/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/relations.dict'
-    bn_list = []
-    for i in range(3):
-        bn = np.load('/scratche/home/apoorv/mod_TuckER/models/' + model_name + '/bn' + str(i) + '.npy', allow_pickle=True)
-        bn_list.append(bn.item())
+
     # entity_embedding_path = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/E.npy'
     # relation_embedding_path = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/R.npy'
     # entity_dict = '/scratche/home/apoorv/fbwq_graphvite/fbwq_complex_128/entities.dict'
@@ -491,7 +479,7 @@ if args.mode == 'train':
     patience=args.patience,
     validate_every=args.validate_every,
     freeze=args.freeze,
-    num_hops=args.hops,
+    hops=args.hops,
     lr=args.lr,
     entdrop=args.entdrop,
     reldrop=args.reldrop,
@@ -500,10 +488,9 @@ if args.mode == 'train':
     model_name=args.model,
     decay=args.decay,
     ls=args.ls,
-    w_matrix=w_matrix,
     load_from=args.load_from,
     outfile=args.outfile,
-    bn_list=bn_list)
+    do_batch_norm=args.do_batch_norm)
 
 
 
