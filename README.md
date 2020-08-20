@@ -1,20 +1,35 @@
 # EmbedKGQA
 This is the code for our ACL 2020 paper [Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings](https://malllabiisc.github.io/publications/papers/final_embedkgqa.pdf)
 
-We will be updating the README with instructions on how to download the dataset and run the code.
+
 ![](model.png)
 
 # Instructions
 
-In order to run the code for MetaQA, first unzip data.zip and pretrained_model.zip (Alternately, if download from this repo doesn't work due to git lfs limits, you can download from [here](https://drive.google.com/drive/folders/1RlqGBMo45lTmWz9MUPTq-0KcjSd3ujxc?usp=sharing)). Unzip these files in the main directory.
+In order to run the code, first download data.zip and pretrained_model.zip from [here](https://drive.google.com/drive/folders/1RlqGBMo45lTmWz9MUPTq-0KcjSd3ujxc?usp=sharing). Unzip these files in the main directory.
 
-Then change to directory ./KGQA/LSTM. Following is an example command to run the QA training code
+## MetaQA
+
+Change to directory ./KGQA/LSTM. Following is an example command to run the QA training code
 
 ```
 python3 main.py --mode train --relation_dim 200 --hidden_dim 256 \
 --gpu 2 --freeze 0 --batch_size 128 --validate_every 5 --hops 2 --lr 0.0005 --entdrop 0.1 --reldrop 0.2  --scoredrop 0.2 \
 --decay 1.0 --model ComplEx --patience 5 --ls 0.0 --kg_type half
 ```
+
+## WebQuestionsSP
+
+Change to directory ./KGQA/RoBERTa. Following is an example command to run the QA training code
+```
+python3 main.py --mode train --relation_dim 200 --do_batch_norm 1 \
+--gpu 2 --freeze 1 --batch_size 16 --validate_every 10 --hops webqsp_half --lr 0.00002 --entdrop 0.0 --reldrop 0.0 --scoredrop 0.0 \
+--decay 1.0 --model ComplEx --patience 20 --ls 0.05 --l3_reg 0.001 --nb_epochs 200 --outfile half_fbwq
+```
+Note: This will run the code in vanilla setting without relation matching, relation matching will have to be done separately.
+
+Also, please not that this implementation uses embeddings created through libkge (https://github.com/uma-pi1/kge). This is a very helpful library and I would suggest that you train embeddings through it since it supports sparse embeddings + shared negative sampling to speed up learning for large KGs like Freebase.
+
 # Dataset creation
 
 ## MetaQA
@@ -37,3 +52,17 @@ There are 5 files for each dataset (1, 2 and 3 hop)
 Out of these, qa_dev, qa_test and qa_train_{n}hop_old are exactly the same as the MetaQA original dev, test and train files respectively.
 
 For qa_train_{n}hop_train and qa_train_{n}hop_train_half, we have added triple (h, r, t) in the form of (head entity, question, answer). This is to prevent the model from 'forgetting' the entity embeddings when it is training the QA model using the QA dataset. qa_train.txt contains all triples, while qa_train_half.txt contains only triples from MetaQA_half.
+
+## WebQuestionsSP
+
+### KG dataset
+
+There are 2 datasets: fbwq_full and fbwq_half
+
+Creating fbwq_full: We restrict the KB to be a subset of Freebase which contains all facts that are within 2-hops of any entity mentioned in the questions of WebQuestionsSP. We further prune it to contain only those relations that are mentioned in the dataset. This smaller KB has 1.8 million entities and 5.7 million triples. 
+
+Creating fbwq_half: We randomly sample 50% of the edges from fbwq_full.
+
+### QA Dataset
+
+Same as the original WebQuestionsSP QA dataset.
