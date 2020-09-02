@@ -3,6 +3,7 @@ This is the code for our ACL 2020 paper [Improving Multi-hop Question Answering 
 
 [Video](https://slideslive.com/38929421/improving-multihop-question-answering-over-knowledge-graphs-using-knowledge-base-embeddings)
 
+New: Please use this slack link for detailed discussion regarding code issues. For normal issues, please create a github issue first. https://join.slack.com/t/embedkgqa/shared_invite/zt-h8el9pnl-AGqBiI2mZkkR~TCK5tBYzg
 
 ![](model.png)
 
