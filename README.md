@@ -67,3 +67,25 @@ Creating fbwq_half: We randomly sample 50% of the edges from fbwq_full.
 ### QA Dataset
 
 Same as the original WebQuestionsSP QA dataset.
+
+### Citation:
+Please cite the following paper if you use this code in your work.
+
+```bibtex
+@inproceedings{saxena-etal-2020-improving,
+    title = "Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings",
+    author = "Saxena, Apoorv  and
+      Tripathi, Aditay  and
+      Talukdar, Partha",
+    booktitle = "Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics",
+    month = jul,
+    year = "2020",
+    address = "Online",
+    publisher = "Association for Computational Linguistics",
+    url = "https://www.aclweb.org/anthology/2020.acl-main.412",
+    doi = "10.18653/v1/2020.acl-main.412",
+    pages = "4498--4507"
+}
+```
+
+For any clarification, comments, or suggestions please create an issue or contact [Apoorv](https://apoorvumang.github.io/).
