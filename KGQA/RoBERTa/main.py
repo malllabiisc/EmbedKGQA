@@ -253,7 +253,7 @@ def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_na
         
     if writeCandidatesToFile:
         # pickle.dump(candidates_with_scores, open('candidates_with_score_and_qe_half.pkl', 'wb'))
-        pickle.dump(candidates_with_scores, open('webqsp_scores_finetune.pkl', 'wb'))
+        pickle.dump(candidates_with_scores, open('webqsp_scores_full_kg.pkl', 'wb'))
         print('wrote candidate file (for future answer processing)')
     # np.save("scores_webqsp_complex.npy", scores_list)
     # exit(0)
