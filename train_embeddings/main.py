@@ -249,7 +249,7 @@ class Experiment:
                         best_test = test
                         print('Validation MRR increased.')
                         print('Saving model...')
-                        write_embedding_files(model)
+                        # self.write_embedding_files(model)
                         print('Model saved!')    
                     
                     print('Best valid:', best_valid)

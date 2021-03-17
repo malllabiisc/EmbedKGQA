@@ -1,0 +1,12 @@
+import: [lookup_embedder]
+
+transe:
+  class_name: TransE
+  entity_embedder:
+    type: lookup_embedder
+    +++: +++
+  relation_embedder:
+    type: lookup_embedder
+    +++: +++
+  l_norm: 1.
+

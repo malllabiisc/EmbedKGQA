@@ -1,0 +1,83 @@
+# Stores explicitly an embedding for each object in a lookup table. See
+# https://pytorch.org/docs/stable/nn.html#torch.nn.Embedding
+lookup_embedder:
+  class_name: LookupEmbedder
+
+  # Dimensionality of the embedding
+  dim: 100
+
+  # The initializer used to initialzed the embeddings. See
+  # https://pytorch.org/docs/stable/nn.init.html for details. Example values
+  # include xavier_uniform_, xavier_normal_, uniform_, and normal_.
+  initialize: normal_
+
+  # Arguments to the initializer. If this field contains a subkey that matches
+  # the value of option lookup_embedder.initialize, pass the options under this
+  # subkey to the corresponding pytorch functions. Otherwise, pass all options
+  # to the initializer.
+  #
+  # Examples for specifying args for specific initializers (those are the defaults):
+  #   normal_:
+  #     mean: 0.0
+  #     std: 1.0
+  #   uniform_:
+  #     a: 0.0
+  #     b: 1.0
+  #    xavier_normal_:
+  #      gain: 1.0
+  #    xavier_uniform_:
+  #      gain: 1.0
+  initialize_args:
+    +++: +++
+
+  # Initialize the model with embeddings stored in a packaged model
+  pretrain:
+      # path to packaged model containing entity/relation embeddings
+      # leave empty to not pretrain
+      model_filename: "" 
+      # ensure that all entities/relations  can be initialized  with embeddings of 
+      #  the packaged model
+      #  if false initialize other embeddings normally
+      ensure_all: False
+ 
+  # Dropout used for the embeddings.
+  dropout: 0.
+
+  # Whether embeddings should be normalized. Normalization takes place before
+  # each batch is processed.
+  normalize:
+    # l_p norm to use. Negative numbers mean do not normalize.
+    p: -1.                    # common choices: 1., 2.
+
+    # Whether to push gradients through normalization.
+    with_grad: False
+
+  # Whether and how embeddings should be regularized. Possible values are '' (do
+  # not regularize) or lp (defaults to p=2; else set regularize_args.p)
+  regularize: 'lp'
+
+  # Weight used for regularization. Interpreted w.r.t. to the empirical risk.
+  regularize_weight: 0.0
+
+  # Further arguments for regulariztaion
+  regularize_args:
+    # If true, penalty for the embedding of an object is weighted by the
+    # object's *relative* frequency in the training data. Note that this
+    # generally reduces the magnitude of the penalty (for random embeddings: by
+    # roughly a factor corresponding to the number of objects in the lookup
+    # table) compared to unweighted regularization.
+    weighted: False
+    
+    # Which norm to use for lp regularization.
+    p: 2
+    
+    # Other options for the regularizer.
+    +++: +++
+
+  # Use a sparse tensor for the gradient. See
+  # https://pytorch.org/docs/stable/nn.html#torch.nn.Embedding.
+  # Sparse tensors might require special settings, e.g. SparseAdam instead of Adam
+  sparse: False
+
+  # Will be deprecated.
+  round_dim_to: []

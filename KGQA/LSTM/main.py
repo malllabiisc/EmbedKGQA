@@ -292,8 +292,9 @@ else:
     data_path = '../../data/QA_data/MetaQA/qa_train_' + hops + '.txt'
 print('Train file is ', data_path)
 
-valid_data_path = '../../data/QA_data/MetaQA/qa_dev_' + hops + '.txt'
-test_data_path = '../../data/QA_data/MetaQA/qa_test_' + hops + '.txt'
+hops_without_old = hops.replace('_old', '')
+valid_data_path = '../../data/QA_data/MetaQA/qa_dev_' + hops_without_old + '.txt'
+test_data_path = '../../data/QA_data/MetaQA/qa_test_' + hops_without_old + '.txt'
 
 model_name = args.model
 kg_type = args.kg_type
