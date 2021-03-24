@@ -1,5 +1,7 @@
 # Relation matching module
 
+UPDATE: Please see https://github.com/malllabiisc/EmbedKGQA/issues/69 for an issue related to a missing file.
+
 As mentioned in Section 4.4.1 of paper, a model is trained for detecting relations associated to the question, and this model is further used in relation matching.
 
 ## Model
