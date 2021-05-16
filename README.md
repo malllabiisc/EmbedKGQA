@@ -28,7 +28,7 @@ python3 main.py --mode train --relation_dim 200 --do_batch_norm 1 \
 ```
 Note: This will run the code in vanilla setting without relation matching, relation matching will have to be done separately.
 
-Also, please not that this implementation uses embeddings created through libkge (https://github.com/uma-pi1/kge). This is a very helpful library and I would suggest that you train embeddings through it since it supports sparse embeddings + shared negative sampling to speed up learning for large KGs like Freebase.
+Also, please note that this implementation uses embeddings created through libkge (https://github.com/uma-pi1/kge). This is a very helpful library and I would suggest that you train embeddings through it since it supports sparse embeddings + shared negative sampling to speed up learning for large KGs like Freebase.
 
 # Dataset creation
 
