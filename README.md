@@ -6,7 +6,11 @@ UPDATE: Code for relation matching has been added. Please see the [Readme](KGQA/
 
 # Instructions
 
+## Data and pre-trained models
+
 In order to run the code, first download data.zip and pretrained_model.zip from [here](https://drive.google.com/drive/folders/1RlqGBMo45lTmWz9MUPTq-0KcjSd3ujxc?usp=sharing). Unzip these files in the main directory.
+
+UPDATE: There was an issue with the WebQSP test set containing 43 fewer questions (issue [#86](https://github.com/malllabiisc/EmbedKGQA/issues/86)). This has been fixed, and the file ``qa_test_webqsp_fixed.txt`` should be placed in the directory ``data/QA_data/WebQuestionsSP``
 
 ## MetaQA
 
