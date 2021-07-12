@@ -5,6 +5,9 @@ embedkgqa_env/*
 data.zip
 pretrained_models.zip
 
+# checkpoint files
+*.pt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

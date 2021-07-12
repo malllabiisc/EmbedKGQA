@@ -159,14 +159,14 @@ def inTopk(scores, ans, k):
             result = True
     return result
 
-def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_name):
+def validate_v2(data_path, device, model, dataloader, entity2idx, model_name, writeCandidatesToFile=False):
     model.eval()
     data = process_text_file(data_path)
     idx2entity = {}
     for key, value in entity2idx.items():
         idx2entity[value] = key
     answers = []
-    data_gen = data_generator(data=data, dataloader=train_dataloader, entity2idx=entity2idx)
+    data_gen = data_generator(data=data, dataloader=dataloader, entity2idx=entity2idx)
     total_correct = 0
     error_count = 0
     num_incorrect = 0
@@ -185,7 +185,6 @@ def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_na
     scores_list = []
     hit_at_10 = 0
     candidates_with_scores = []
-    writeCandidatesToFile = False
     for i in tqdm(range(len(data))):
         # try:
         d = next(data_gen)
@@ -253,7 +252,7 @@ def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_na
         
     if writeCandidatesToFile:
         # pickle.dump(candidates_with_scores, open('candidates_with_score_and_qe_half.pkl', 'wb'))
-        pickle.dump(candidates_with_scores, open('webqsp_scores_full_kg.pkl', 'wb'))
+        pickle.dump(candidates_with_scores, open('webqsp_scores_full_kg_fixed.pkl', 'wb'))
         print('wrote candidate file (for future answer processing)')
     # np.save("scores_webqsp_complex.npy", scores_list)
     # exit(0)
@@ -320,7 +319,8 @@ def train(data_path, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs
     if load_from != '':
         # model.load_state_dict(torch.load("checkpoints/roberta_finetune/" + load_from + ".pt"))
         fname = "checkpoints/roberta_finetune/" + load_from + ".pt"
-        model.load_state_dict(torch.load(fname, map_location=lambda storage, loc: storage))
+        # fname = "/scratche/home/apoorv/tut_pytorch/kg-qa/checkpoints/roberta_finetune/" + load_from + ".pt"
+        model.load_state_dict(torch.load(fname, map_location=torch.device('cpu')))
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = ExponentialLR(optimizer, decay)
@@ -359,15 +359,15 @@ def train(data_path, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs
             elif phase=='valid':
                 model.eval()
                 eps = 0.0001
-                answers, score = validate_v2(model=model, data_path= valid_data_path, entity2idx=entity2idx, train_dataloader=dataset, device=device, model_name=model_name)
+                answers, score = validate_v2(model=model, data_path= valid_data_path, entity2idx=entity2idx, dataloader=dataset, device=device, model_name=model_name)
                 if score > best_score + eps:
                     best_score = score
                     no_update = 0
                     best_model = model.state_dict()
                     print(hops + " hop Validation accuracy (no relation scoring) increased from previous epoch", score)
                     # writeToFile(answers, 'results_' + model_name + '_' + hops + '.txt')
-                    # torch.save(best_model, "checkpoints/roberta_finetune/best_score_model.pt")
-                    # torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
+                    torch.save(best_model, "checkpoints/roberta_finetune/best_score_model.pt")
+                    torch.save(best_model, "checkpoints/roberta_finetune/" + outfile + ".pt")
                 elif (score < best_score + eps) and (no_update < patience):
                     no_update +=1
                     print("Validation accuracy decreases to %f from %f, %d more epoch to check"%(score, best_score, patience-no_update))
@@ -383,7 +383,62 @@ def train(data_path, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs
                     exit()
                 # torch.save(model.state_dict(), "checkpoints/roberta_finetune/"+str(epoch)+".pt")
                 # torch.save(model.state_dict(), "checkpoints/roberta_finetune/x.pt")
-                    
+
+def eval(data_path,
+    load_from,
+    gpu,
+    hidden_dim,
+    relation_dim,
+    embedding_dim,
+    hops,
+    batch_size,
+    num_workers,
+    model_name,
+    do_batch_norm,
+    use_cuda):
+
+    print('Loading entities and relations')
+    kg_type = 'full'
+    if 'half' in hops:
+        kg_type = 'half'
+    checkpoint_file = '../../pretrained_models/embeddings/ComplEx_fbwq_' + kg_type + '/checkpoint_best.pt'
+    print('Loading kg embeddings from', checkpoint_file)
+    kge_checkpoint = load_checkpoint(checkpoint_file)
+    kge_model = KgeModel.create_from(kge_checkpoint)
+    kge_model.eval()
+    e = getEntityEmbeddings(kge_model, hops)
+
+    print('Loaded entities and relations')
+
+    entity2idx, idx2entity, embedding_matrix = prepare_embeddings(e)
+    data = process_text_file(data_path, split=False)
+    print('Evaluation file processed, making dataloader')
+
+    device = torch.device(gpu if use_cuda else "cpu")
+    dataset = DatasetMetaQA(data, e, entity2idx)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    print('Creating model...')
+    model = RelationExtractor(embedding_dim=embedding_dim, num_entities = len(idx2entity), relation_dim=relation_dim, 
+                              pretrained_embeddings=embedding_matrix, device=device, 
+                              model = model_name, do_batch_norm=do_batch_norm)
+    print('Model created!')
+    if load_from != '':
+        # model.load_state_dict(torch.load("checkpoints/roberta_finetune/" + load_from + ".pt"))
+        fname = "checkpoints/roberta_finetune/" + load_from + ".pt"
+        print('Loading from %s' % fname)
+        model.load_state_dict(torch.load(fname, map_location=torch.device('cpu')))
+        print('Loaded successfully!')
+    else:
+        print('Need to specify load_from argument for evaluation!')
+        exit(0)
+    
+    model.to(device)
+    answers, score = validate_v2(model=model, data_path= data_path, 
+                                 entity2idx=entity2idx, dataloader=dataset, 
+                                 device=device, model_name=model_name,
+                                 writeCandidatesToFile=True)
+    print('Score', score)
+
 
 def process_text_file(text_file, split=False):
     data_file = open(text_file, 'r')
@@ -443,8 +498,8 @@ model_name = args.model
 
 if 'webqsp' in hops:
     data_path = '../../data/QA_data/WebQuestionsSP/qa_train_webqsp.txt'
-    valid_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
-    test_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
+    valid_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp_fixed.txt'
+    test_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp_fixed.txt'
 
 
 if args.mode == 'train':
@@ -480,13 +535,14 @@ if args.mode == 'train':
 
 elif args.mode == 'eval':
     eval(data_path = test_data_path,
-    entity_path=entity_embedding_path, 
-    relation_path=relation_embedding_path, 
-    entity_dict=entity_dict, 
-    relation_dict=relation_dict,
-    model_path='checkpoints/head_as_neg_model/best_score_model.pt',
-    train_data=data_path,
+    load_from=args.load_from,
     gpu=args.gpu,
     hidden_dim=args.hidden_dim,
     relation_dim=args.relation_dim,
-    embedding_dim=args.embedding_dim)
+    embedding_dim=args.embedding_dim,
+    hops=args.hops,
+    batch_size=args.batch_size,
+    num_workers=args.num_workers,
+    model_name=args.model,
+    do_batch_norm=args.do_batch_norm,
+    use_cuda=args.use_cuda)

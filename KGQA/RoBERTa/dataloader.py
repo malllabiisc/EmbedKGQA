@@ -22,7 +22,7 @@ class DatasetMetaQA(Dataset):
         self.index_array = list(self.entities.keys())
         self.tokenizer_class = RobertaTokenizer
         self.pretrained_weights = 'roberta-base'
-        self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
+        self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights)
 
     def __len__(self):
         return len(self.data)

@@ -11,7 +11,8 @@ import random
 
 class RelationExtractor(nn.Module):
 
-    def __init__(self, embedding_dim, relation_dim, num_entities, pretrained_embeddings, device, entdrop, reldrop, scoredrop, l3_reg, model, ls, do_batch_norm, freeze=True):
+    def __init__(self, embedding_dim, relation_dim, num_entities, pretrained_embeddings, device, 
+    entdrop=0.0, reldrop=0.0, scoredrop=0.0, l3_reg=0.0, model='ComplEx', ls=0.0, do_batch_norm=True, freeze=True):
         super(RelationExtractor, self).__init__()
         self.device = device
         self.model = model
