@@ -30,7 +30,7 @@ python3 main.py --mode train --relation_dim 200 --do_batch_norm 1 \
 --gpu 2 --freeze 1 --batch_size 16 --validate_every 10 --hops webqsp_half --lr 0.00002 --entdrop 0.0 --reldrop 0.0 --scoredrop 0.0 \
 --decay 1.0 --model ComplEx --patience 20 --ls 0.05 --l3_reg 0.001 --nb_epochs 200 --outfile half_fbwq
 ```
-Note: This will run the code in vanilla setting without relation matching, relation matching will have to be done separately.
+Note: This will run the code in vanilla setting without relation matching, relation matching will have to be done separately. Details on relation matching can be found [here](KGQA/RoBERTa/README.md). The numbers in Table 3 are *after* relation matching.
 
 Also, please note that this implementation uses embeddings created through libkge (https://github.com/uma-pi1/kge). This is a very helpful library and I would suggest that you train embeddings through it since it supports sparse embeddings + shared negative sampling to speed up learning for large KGs like Freebase.
 
