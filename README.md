@@ -1,5 +1,5 @@
 # EmbedKGQA
-This is the code for our ACL 2020 paper [Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings](https://malllabiisc.github.io/publications/papers/final_embedkgqa.pdf) ([Slides](https://docs.google.com/presentation/d/1uS-KtOOhgyRFb593ru-7kwC8-xdy5bAzpgpsLsIDlb4/edit?usp=sharing))
+This is the code for our ACL 2020 paper [Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings](https://malllabiisc.github.io/publications/papers/final_embedkgqa.pdf) ([Slides](https://slideslive.com/38929421/improving-multihop-question-answering-over-knowledge-graphs-using-knowledge-base-embeddings))
 
 UPDATE: Code for relation matching has been added. Please see the [Readme](KGQA/RoBERTa/README.md) for details on how to use it.
 ![](model.png)
